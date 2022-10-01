@@ -1,54 +1,54 @@
+use std::io::Cursor;
+
+use regex::Regex;
 use serde_json::json;
+use image::{ImageBuffer, RgbImage, EncodableLayout};
 use worker::*;
 
 mod utils;
 
-fn log_request(req: &Request) {
-    console_log!(
-        "{} - [{}], located at: {:?}, within: {}",
-        Date::now().to_string(),
-        req.path(),
-        req.cf().coordinates().unwrap_or_default(),
-        req.cf().region().unwrap_or("unknown region".into())
-    );
+fn get_params(text: String) -> Vec<[u8; 3]> {
+    let mut rslt: Vec<[u8; 3]> = vec![];
+    let re = Regex::new(r"color=%23([0-9A-Fa-f]{6})").unwrap();
+    for mat in re.captures_iter(&text) {
+        let rgbString = mat.get(1).map_or("", |m| m.as_str()).trim().to_string();
+        let mut decoded = [0; 3];
+        hex::decode_to_slice(rgbString, &mut decoded).expect("Decoding failed");
+        rslt.push(decoded)
+    }
+    rslt
+}
+
+async fn hundle_ogp(colors: Vec<[u8; 3]>) -> Result<Response> {
+    let mut img: RgbImage = ImageBuffer::new(1200, 630);
+    let color_size = colors.len() as u32;
+    let each_size = 1200 / color_size;
+    for (x, y, pixel) in img.enumerate_pixels_mut() {
+        let cursor = (x / each_size) as usize;
+        *pixel = image::Rgb(*colors.get(cursor).unwrap());
+    }
+    let mut headers = Headers::new();
+    headers.set("content-type", "image/png")?;
+
+    let mut img_bytes: Vec<u8> = Vec::new();
+    img.write_to(&mut Cursor::new(&mut img_bytes), image::ImageOutputFormat::Png).unwrap();
+    Ok(Response::from_bytes(img_bytes)?.with_headers(headers))
 }
 
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
-    log_request(&req);
-
-    // Optionally, get more helpful error messages written to the console in the case of a panic.
     utils::set_panic_hook();
 
-    // Optionally, use the Router to handle matching endpoints, use ":name" placeholders, or "*name"
-    // catch-alls to match on specific patterns. Alternatively, use `Router::with_data(D)` to
-    // provide arbitrary data that will be accessible in each route via the `ctx.data()` method.
     let router = Router::new();
 
-    // Add as many routes as your Worker needs! Each route will get a `Request` for handling HTTP
-    // functionality and a `RouteContext` which you can use to  and get route parameters and
-    // Environment bindings like KV Stores, Durable Objects, Secrets, and Variables.
     router
-        .get("/", |_, _| Response::ok("Hello from Workers!"))
-        .post_async("/form/:field", |mut req, ctx| async move {
-            if let Some(name) = ctx.param("field") {
-                let form = req.form_data().await?;
-                match form.get(name) {
-                    Some(FormEntry::Field(value)) => {
-                        return Response::from_json(&json!({ name: value }))
-                    }
-                    Some(FormEntry::File(_)) => {
-                        return Response::error("`field` param in form shouldn't be a File", 422);
-                    }
-                    None => return Response::error("Bad Request", 400),
-                }
+        .get_async("/", |req, _| async move {
+            if let Some(query_params) = req.url()?.query() {
+                hundle_ogp(get_params(query_params.to_string())).await
+            } else {
+                let colors: Vec<[u8; 3]> = vec![[0, 0, 255], [0, 255, 0], [255, 255, 0], [239, 129, 15], [255, 0, 0]];
+                hundle_ogp(colors).await
             }
-
-            Response::error("Bad Request", 400)
-        })
-        .get("/worker-version", |_, ctx| {
-            let version = ctx.var("WORKERS_RS_VERSION")?.to_string();
-            Response::ok(version)
         })
         .run(req, env)
         .await
