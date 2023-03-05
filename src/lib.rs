@@ -31,20 +31,11 @@ fn gen_img(colors: &Vec<[u8; 3]>) -> Vec<u8> {
     img_bytes
 }
 
-async fn hundle_ogp(colors: &Vec<[u8; 3]>, key: &str) -> Result<Response> {
-    let cache = Cache::default();
-    if let Some(resp) = cache.get(key, true).await? {
-        return Ok(resp)
-    } else {
-        let img_bytes = gen_img(colors);
-        let mut headers = Headers::new();
-        headers.set("content-type", "image/png")?;
-        headers.set("cache-control", "max-age=30")?;
-
-        let mut resp = Response::from_bytes(img_bytes)?.with_headers(headers);
-        cache.put(key, resp.cloned()?).await?;
-        Ok(resp)
-    }
+async fn hundle_ogp(colors: &Vec<[u8; 3]>) -> Result<Response> {
+    let img_bytes = gen_img(colors);
+    let mut resp = Response::from_bytes(img_bytes)?;
+    resp.headers_mut().set("content-type", "image/png")?;
+    Ok(resp)
 }
 
 #[event(fetch)]
@@ -58,10 +49,10 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let url = req.url().unwrap();
             if let Some(query_params) = req.url()?.query() {
                 let params = query_params;
-                hundle_ogp(&get_params(params.to_string()), url.as_str()).await
+                hundle_ogp(&get_params(params.to_string())).await
             } else {
                 let colors: Vec<[u8; 3]> = vec![[0, 0, 255], [0, 255, 0], [255, 255, 0], [239, 129, 15], [255, 0, 0]];
-                hundle_ogp(&colors, url.as_str()).await
+                hundle_ogp(&colors).await
             }
         })
         .run(req, env)
