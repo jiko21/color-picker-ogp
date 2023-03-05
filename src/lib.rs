@@ -19,7 +19,7 @@ fn get_params(text: String) -> Vec<[u8; 3]> {
     rslt
 }
 
-async fn hundle_ogp(colors: Vec<[u8; 3]>) -> Result<Response> {
+fn gen_img(colors: &Vec<[u8; 3]>) -> RgbImage{
     let mut img: RgbImage = ImageBuffer::new(1200, 630);
     let color_size = colors.len() as u32;
     let each_size = 1200 / color_size;
@@ -27,6 +27,11 @@ async fn hundle_ogp(colors: Vec<[u8; 3]>) -> Result<Response> {
         let cursor = (x / each_size) as usize;
         *pixel = image::Rgb(*colors.get(cursor).unwrap());
     }
+    img
+}
+
+async fn hundle_ogp(colors: &Vec<[u8; 3]>) -> Result<Response> {
+    let mut img: RgbImage = gen_img(colors);
     let mut headers = Headers::new();
     headers.set("content-type", "image/png")?;
 
@@ -44,10 +49,10 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
     router
         .get_async("/", |req, _| async move {
             if let Some(query_params) = req.url()?.query() {
-                hundle_ogp(get_params(query_params.to_string())).await
+                hundle_ogp(&get_params(query_params.to_string())).await
             } else {
                 let colors: Vec<[u8; 3]> = vec![[0, 0, 255], [0, 255, 0], [255, 255, 0], [239, 129, 15], [255, 0, 0]];
-                hundle_ogp(colors).await
+                hundle_ogp(&colors).await
             }
         })
         .run(req, env)
