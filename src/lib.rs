@@ -39,7 +39,7 @@ async fn hundle_ogp(colors: &Vec<[u8; 3]>, key: &str) -> Result<Response> {
         let img_bytes = gen_img(colors);
         let mut headers = Headers::new();
         headers.set("content-type", "image/png")?;
-        headers.set("cache-control", "s-maxage=30")?;
+        headers.set("cache-control", "max-age=30")?;
 
         let mut resp = Response::from_bytes(img_bytes)?.with_headers(headers);
         cache.put(key, resp.cloned()?).await?;
