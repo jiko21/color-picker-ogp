@@ -19,24 +19,24 @@ fn get_params(text: String) -> Vec<[u8; 3]> {
     rslt
 }
 
-fn gen_img(colors: &Vec<[u8; 3]>) -> RgbImage{
+fn gen_img(colors: &Vec<[u8; 3]>) -> Vec<u8> {
     let mut img: RgbImage = ImageBuffer::new(1200, 630);
     let color_size = colors.len() as u32;
     let each_size = 1200 / color_size;
-    for (x, y, pixel) in img.enumerate_pixels_mut() {
+    for (x, _y, pixel) in img.enumerate_pixels_mut() {
         let cursor = (x / each_size) as usize;
         *pixel = image::Rgb(*colors.get(cursor).unwrap());
     }
-    img
+    let mut img_bytes: Vec<u8> = Vec::new();
+    img.write_to(&mut Cursor::new(&mut img_bytes), image::ImageOutputFormat::Png).unwrap();
+    img_bytes
 }
 
 async fn hundle_ogp(colors: &Vec<[u8; 3]>) -> Result<Response> {
-    let mut img: RgbImage = gen_img(colors);
+    let img_bytes = gen_img(colors);
     let mut headers = Headers::new();
     headers.set("content-type", "image/png")?;
 
-    let mut img_bytes: Vec<u8> = Vec::new();
-    img.write_to(&mut Cursor::new(&mut img_bytes), image::ImageOutputFormat::Png).unwrap();
     Ok(Response::from_bytes(img_bytes)?.with_headers(headers))
 }
 
