@@ -1,8 +1,7 @@
 use std::io::Cursor;
 
 use regex::Regex;
-use serde_json::json;
-use image::{ImageBuffer, RgbImage, EncodableLayout};
+use image::{ImageBuffer, RgbImage};
 use worker::*;
 
 mod utils;
@@ -11,9 +10,9 @@ fn get_params(text: String) -> Vec<[u8; 3]> {
     let mut rslt: Vec<[u8; 3]> = vec![];
     let re = Regex::new(r"color=%23([0-9A-Fa-f]{6})").unwrap();
     for mat in re.captures_iter(&text) {
-        let rgbString = mat.get(1).map_or("", |m| m.as_str()).trim().to_string();
+        let rgb_string = mat.get(1).map_or("", |m| m.as_str()).trim().to_string();
         let mut decoded = [0; 3];
-        hex::decode_to_slice(rgbString, &mut decoded).expect("Decoding failed");
+        hex::decode_to_slice(rgb_string, &mut decoded).expect("Decoding failed");
         rslt.push(decoded)
     }
     rslt
